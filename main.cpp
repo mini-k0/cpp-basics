@@ -2,12 +2,30 @@
 
 int main()
 {
-    int a = 5;
-    int b = 2;
+    int age;
+    bool hasTicket;
 
-    std::cout << "1:" << a/b << std::endl;
-    std::cout << "2:" << 5.0/2 << std::endl;
-    std::cout << "3:" << static_cast<double>(a)/b << std::endl;
+    std::cout << "Enter your age: "; std::cin >> age;
+    std::cout << "Do you have a ticket? (1 = yes, 0 = no): "; std::cin >> hasTicket;
+
+    if(age >= 18)
+    {
+        std::cout << "You are an adult." << std::endl;
+
+        if(hasTicket)
+        {
+            std::cout << "Entry allowed." << std::endl; 
+        }
+        else
+        {
+            std::cout << "You need a ticket." << std::endl;
+        }
+    }
+    else
+    {
+        std::cout << "You are too young." << std::endl;
+    }
+
 
     return 0;
 }
