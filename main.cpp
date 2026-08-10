@@ -6,6 +6,7 @@ int main()
     bool hasTicket;
 
     std::cout << "Enter your age: "; std::cin >> age;
+    
     std::cout << "Do you have a ticket? (1 = yes, 0 = no): "; std::cin >> hasTicket;
 
     if(age >= 18)
