@@ -2,31 +2,28 @@
 
 int main()
 {
-    int age;
-    bool hasTicket;
+    int passward;
+    int attempts = 0;
 
-    std::cout << "Enter your age: "; std::cin >> age;
-    
-    std::cout << "Do you have a ticket? (1 = yes, 0 = no): "; std::cin >> hasTicket;
-
-    if(age >= 18)
+    while(attempts < 3)
     {
-        std::cout << "You are an adult." << std::endl;
+        std::cout << "Enter passward: "; std::cin >> passward;
 
-        if(hasTicket)
+        if(passward == 1234)
         {
-            std::cout << "Entry allowed." << std::endl; 
+            std::cout << "Access granted." << std::endl;
+            break;
         }
-        else
-        {
-            std::cout << "You need a ticket." << std::endl;
-        }
-    }
-    else
-    {
-        std::cout << "You are too young." << std::endl;
+
+        attempts++;
+
+        std::cout << "Wrong passward." << std::endl;
     }
 
+    if(passward != 1234)
+    {
+        std::cout << "Too many faildd attempts." << std::endl;
+    }
 
     return 0;
 }

@@ -30,6 +30,7 @@ Example:
 ```
 
 The result is `1` because the remainder of `10 / 3` is `1`.
+The `%` operator is used with integer values.
 
 ---
 
@@ -37,7 +38,7 @@ The result is `1` because the remainder of `10 / 3` is `1`.
 
 C++ follows an order of operations.
 
-Basic order:
+For the operators covered today, the basic order is:
 
 1. `( )`
 2. `*`, `/`, `%`
@@ -128,12 +129,12 @@ not `2.5`.
 Comparison operators compare two values and produce a Boolean result.
 
 ```text
-== equal to
-!= not equal to
-> greater than
-< less than
->= greater than or equal to
-<= less than or equal to
+==  equal to
+!=  not equal to
+>   greater than
+<   less than
+>=  greater than or equal to
+<=  less than or equal to
 ```
 
 Example:
