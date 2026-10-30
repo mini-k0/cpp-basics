@@ -1,0 +1,137 @@
+class ExerciseStatistics {
+  final String name;
+  final int totalSets;
+  final int totalReps;
+  final double maxWeight;
+  final int workoutDays;
+
+  const ExerciseStatistics({
+    required this.name,
+    required this.totalSets,
+    required this.totalReps,
+    required this.maxWeight,
+    required this.workoutDays,
+  });
+}
+
+class WorkoutStatistics {
+  final int workoutDays;
+  final int totalSets;
+  final int totalReps;
+  final int exerciseTypes;
+  final List<ExerciseStatistics> exercises;
+
+  const WorkoutStatistics({
+    required this.workoutDays,
+    required this.totalSets,
+    required this.totalReps,
+    required this.exerciseTypes,
+    required this.exercises,
+  });
+
+  static WorkoutStatistics calculate(
+    List<Map<String, dynamic>> workouts,
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    int totalSets = 0;
+    int totalReps = 0;
+
+    final allDates = <String>{};
+    final exerciseData = <String, _ExerciseAccumulator>{};
+
+    final start = DateTime(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+    );
+
+    final endExclusive = DateTime(
+      endDate.year,
+      endDate.month,
+      endDate.day + 1,
+    );
+
+    for (final workout in workouts) {
+      final date = DateTime.tryParse(
+        workout['created_at'].toString(),
+      );
+
+      if (date == null ||
+          date.isBefore(start) ||
+          !date.isBefore(endExclusive)) {
+        continue;
+      }
+
+      final name = workout['name'].toString().trim();
+      final sets = (workout['sets'] as num).toInt();
+      final reps = (workout['reps'] as num).toInt();
+      final weight = (workout['weight'] as num).toDouble();
+
+      if (name.isEmpty ||
+          sets <= 0 ||
+          reps <= 0 ||
+          !weight.isFinite ||
+          weight < 0) {
+        continue;
+      }
+
+      final dateKey =
+          '${date.year}-${date.month}-${date.day}';
+
+      final repetitions = sets * reps;
+
+      totalSets += sets;
+      totalReps += repetitions;
+      allDates.add(dateKey);
+
+      final key = name.toLowerCase();
+
+      final exercise = exerciseData.putIfAbsent(
+        key,
+        () => _ExerciseAccumulator(name),
+      );
+
+      exercise.totalSets += sets;
+      exercise.totalReps += repetitions;
+
+      if (weight > exercise.maxWeight) {
+        exercise.maxWeight = weight;
+      }
+
+      exercise.dates.add(dateKey);
+    }
+
+    final exercises = exerciseData.values.map((item) {
+      return ExerciseStatistics(
+        name: item.name,
+        totalSets: item.totalSets,
+        totalReps: item.totalReps,
+        maxWeight: item.maxWeight,
+        workoutDays: item.dates.length,
+      );
+    }).toList();
+
+    exercises.sort(
+      (a, b) => b.totalSets.compareTo(a.totalSets),
+    );
+
+    return WorkoutStatistics(
+      workoutDays: allDates.length,
+      totalSets: totalSets,
+      totalReps: totalReps,
+      exerciseTypes: exercises.length,
+      exercises: exercises,
+    );
+  }
+}
+
+class _ExerciseAccumulator {
+  final String name;
+  int totalSets = 0;
+  int totalReps = 0;
+  double maxWeight = 0;
+  final Set<String> dates = {};
+
+  _ExerciseAccumulator(this.name);
+}

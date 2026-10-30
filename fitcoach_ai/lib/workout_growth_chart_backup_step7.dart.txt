@@ -1,0 +1,83 @@
+import 'workout_statistics.dart';
+
+class WeeklyExerciseData {
+  final DateTime weekStart;
+  final int totalReps;
+  final int totalSets;
+  final double maxWeight;
+
+  const WeeklyExerciseData({
+    required this.weekStart,
+    required this.totalReps,
+    required this.totalSets,
+    required this.maxWeight,
+  });
+}
+
+class WorkoutGrowthChart {
+  static List<WeeklyExerciseData> calculateWeeklyData(
+    List<Map<String, dynamic>> workouts,
+    String exerciseName, {
+    int numberOfWeeks = 8,
+    DateTime? referenceDate,
+  }) {
+    if (numberOfWeeks <= 0) {
+      return [];
+    }
+
+    final now = referenceDate ?? DateTime.now();
+
+    final thisMonday = DateTime(
+      now.year,
+      now.month,
+      now.day - (now.weekday - 1),
+    );
+
+    final results = <WeeklyExerciseData>[];
+
+    for (int i = numberOfWeeks - 1; i >= 0; i--) {
+      final start = DateTime(
+        thisMonday.year,
+        thisMonday.month,
+        thisMonday.day - i * 7,
+      );
+
+      final end = DateTime(
+        start.year,
+        start.month,
+        start.day + 6,
+      );
+
+      final statistics = WorkoutStatistics.calculate(
+        workouts,
+        start,
+        end,
+      );
+
+      int reps = 0;
+      int sets = 0;
+      double maxWeight = 0;
+
+      for (final exercise in statistics.exercises) {
+        if (exercise.name.toLowerCase() ==
+            exerciseName.trim().toLowerCase()) {
+          reps = exercise.totalReps;
+          sets = exercise.totalSets;
+          maxWeight = exercise.maxWeight;
+          break;
+        }
+      }
+
+      results.add(
+  WeeklyExerciseData(
+    weekStart: start,
+    totalReps: reps,
+    totalSets: sets,
+    maxWeight: maxWeight,
+  ),
+);
+    }
+
+    return results;
+  }
+}

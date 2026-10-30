@@ -1,0 +1,70 @@
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+class WorkoutDatabase {
+  static Database? _database;
+
+  static Future<Database> get database async {
+    if (_database != null) {
+      return _database!;
+    }
+
+    final databasePath = await getDatabasesPath();
+    final path = join(databasePath, 'fitcoach.db');
+
+    _database = await openDatabase(
+      path,
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute('''
+          CREATE TABLE workouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            weight REAL NOT NULL,
+            reps INTEGER NOT NULL,
+            sets INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+          )
+        ''');
+      },
+    );
+
+    return _database!;
+  }
+
+  static Future<int> insertWorkout({
+    required String name,
+    required double weight,
+    required int reps,
+    required int sets,
+  }) async {
+    final db = await database;
+
+    return db.insert('workouts', {
+      'name': name,
+      'weight': weight,
+      'reps': reps,
+      'sets': sets,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  static Future<List<Map<String, dynamic>>> getWorkouts() async {
+    final db = await database;
+
+    return db.query(
+      'workouts',
+      orderBy: 'created_at DESC, id DESC',
+    );
+  }
+
+  static Future<int> deleteWorkout(int id) async {
+    final db = await database;
+
+    return db.delete(
+      'workouts',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+}

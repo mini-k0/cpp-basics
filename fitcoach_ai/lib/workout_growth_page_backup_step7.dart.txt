@@ -1,0 +1,247 @@
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+
+import 'workout_database.dart';
+import 'workout_growth_chart.dart';
+
+class WorkoutGrowthPage extends StatefulWidget {
+  const WorkoutGrowthPage({super.key});
+
+  @override
+  State<WorkoutGrowthPage> createState() =>
+      _WorkoutGrowthPageState();
+}
+
+class _WorkoutGrowthPageState extends State<WorkoutGrowthPage> {
+  late Future<List<Map<String, dynamic>>> workoutsFuture;
+
+  String? selectedExercise;
+  String selectedMetric = 'reps';
+
+  @override
+  void initState() {
+    super.initState();
+    workoutsFuture = WorkoutDatabase.getWorkouts();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('운동 성장 그래프'),
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: workoutsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('기록을 불러오지 못했습니다: ${snapshot.error}'),
+            );
+          }
+
+          final workouts = snapshot.data ?? [];
+
+          final exerciseNames = workouts
+              .map((workout) => workout['name'].toString().trim())
+              .where((name) => name.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
+
+          if (exerciseNames.isEmpty) {
+            return const Center(
+              child: Text('아직 저장된 운동 기록이 없습니다.'),
+            );
+          }
+
+          final currentExercise =
+              exerciseNames.contains(selectedExercise)
+                  ? selectedExercise!
+                  : exerciseNames.first;
+
+          final weeklyData = WorkoutGrowthChart.calculateWeeklyData(
+            workouts,
+            currentExercise,
+          );
+
+          double metricValue(WeeklyExerciseData item) {
+  switch (selectedMetric) {
+    case 'sets':
+      return item.totalSets.toDouble();
+    case 'weight':
+      return item.maxWeight;
+    default:
+      return item.totalReps.toDouble();
+  }
+}
+
+final maxValue = weeklyData.fold<double>(
+  0,
+  (max, item) {
+    final value = metricValue(item);
+    return value > max ? value : max;
+  },
+);
+
+final chartMaxY = maxValue == 0 ? 10.0 : maxValue * 1.2;
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                '운동 종목 선택',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: ValueKey(currentExercise),
+                initialValue: currentExercise,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                ),
+                items: exerciseNames.map((name) {
+                  return DropdownMenuItem(
+                    value: name,
+                    child: Text(name),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedExercise = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 28),
+              Text(
+                '$currentExercise - 최근 8주',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              const Text('그래프 분석 항목'),
+const SizedBox(height: 12),
+
+SegmentedButton<String>(
+  segments: const [
+    ButtonSegment(
+      value: 'reps',
+      label: Text('반복'),
+    ),
+    ButtonSegment(
+      value: 'sets',
+      label: Text('세트'),
+    ),
+    ButtonSegment(
+      value: 'weight',
+      label: Text('중량'),
+    ),
+  ],
+  selected: {selectedMetric},
+  onSelectionChanged: (selection) {
+    setState(() {
+      selectedMetric = selection.first;
+    });
+  },
+),
+
+const SizedBox(height: 24),
+Text(
+  selectedMetric == 'reps'
+      ? '주간 총 반복 횟수 (회)'
+      : selectedMetric == 'sets'
+          ? '주간 총 세트 수 (세트)'
+          : '주간 최고 추가 중량 (kg)',
+),
+              SizedBox(
+                height: 260,
+                child: LineChart(
+                  LineChartData(
+                    minX: 0,
+                    maxX: 7,
+                    minY: 0,
+                    maxY: chartMaxY,
+                    gridData: const FlGridData(show: true),
+                    borderData: FlBorderData(show: true),
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 30,
+                          interval: 1,
+                          getTitlesWidget: (value, meta) {
+                            final index = value.toInt();
+
+                            if (index < 0 ||
+                                index >= weeklyData.length ||
+                                value != index.toDouble()) {
+                              return const SizedBox.shrink();
+                            }
+
+                            final date = weeklyData[index].weekStart;
+
+                            return SideTitleWidget(
+                              meta: meta,
+                              child: Text(
+                                '${date.month}/${date.day}',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: [
+                          for (int i = 0; i < weeklyData.length; i++)
+                            FlSpot(
+                              i.toDouble(),
+                              metricValue(weeklyData[i]),
+                            ),
+                        ],
+                        isCurved: false,
+                        barWidth: 3,
+                        dotData: const FlDotData(show: true),
+                        belowBarData: BarAreaData(show: false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                '주간 상세 기록',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              ...weeklyData.map((item) {
+                final date = item.weekStart;
+
+                return Card(
+                  child: ListTile(
+                    title: Text(
+                      '${date.year}.${date.month}.${date.day} 시작 주',
+                    ),
+                    subtitle: Text('${item.totalSets}세트'),
+                    trailing: Text('${item.totalReps}회'),
+                  ),
+                );
+              }),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
