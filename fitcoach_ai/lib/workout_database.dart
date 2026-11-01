@@ -14,7 +14,7 @@ class WorkoutDatabase {
 
     _database = await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -42,6 +42,18 @@ class WorkoutDatabase {
               ON DELETE CASCADE
           )
         ''');
+
+        await db.execute('''
+          CREATE TABLE nutrition_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            food_name TEXT NOT NULL,
+            meal_type TEXT NOT NULL,
+            amount_grams REAL NOT NULL,
+            calories REAL NOT NULL,
+            protein_grams REAL NOT NULL,
+            eaten_at TEXT NOT NULL
+          )
+        ''');
       },
 
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -59,6 +71,19 @@ class WorkoutDatabase {
             )
           ''');
         }
+        if (oldVersion < 3) {
+  await db.execute('''
+    CREATE TABLE nutrition_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      food_name TEXT NOT NULL,
+      meal_type TEXT NOT NULL,
+      amount_grams REAL NOT NULL,
+      calories REAL NOT NULL,
+      protein_grams REAL NOT NULL,
+      eaten_at TEXT NOT NULL
+    )
+  ''');
+}
       },
     );
 
@@ -376,5 +401,207 @@ static Future<Set<int>> getWorkoutIdsWithSets() async {
   return results
       .map((row) => (row['workout_id'] as num).toInt())
       .toSet();
+}
+static Future<List<String>> getTableNames() async {
+  final db = await database;
+
+  final result = await db.rawQuery(
+    "SELECT name FROM sqlite_master "
+    "WHERE type = 'table' "
+    "ORDER BY name",
+  );
+
+  return result
+      .map((row) => row['name'] as String)
+      .toList();
+}
+static Future<int> insertNutritionRecord({
+  required String foodName,
+  required String mealType,
+  required double amountGrams,
+  required double calories,
+  required double proteinGrams,
+  required DateTime eatenAt,
+}) async {
+  if (foodName.trim().isEmpty) {
+    throw ArgumentError('음식 이름을 입력해야 합니다.');
+  }
+
+  if (!['아침', '점심', '저녁', '간식'].contains(mealType)) {
+    throw ArgumentError('올바른 식사 구분을 선택해야 합니다.');
+  }
+
+  if (!amountGrams.isFinite || amountGrams <= 0) {
+    throw ArgumentError('섭취량은 0보다 커야 합니다.');
+  }
+
+  if (!calories.isFinite || calories < 0) {
+    throw ArgumentError('칼로리는 0 이상이어야 합니다.');
+  }
+
+  if (!proteinGrams.isFinite || proteinGrams < 0) {
+    throw ArgumentError('단백질은 0 이상이어야 합니다.');
+  }
+
+  final db = await database;
+
+  return db.insert(
+    'nutrition_records',
+    {
+      'food_name': foodName.trim(),
+      'meal_type': mealType,
+      'amount_grams': amountGrams,
+      'calories': calories,
+      'protein_grams': proteinGrams,
+      'eaten_at': eatenAt.toIso8601String(),
+    },
+  );
+}
+static Future<List<Map<String, dynamic>>> getNutritionRecords() async {
+  final db = await database;
+
+  return db.query(
+    'nutrition_records',
+    orderBy: 'eaten_at DESC, id DESC',
+  );
+}
+static Future<Map<String, double>> getTodayNutritionTotals() async {
+  final db = await database;
+
+  final now = DateTime.now();
+  final startOfDay = DateTime(now.year, now.month, now.day);
+  final endOfDay = startOfDay.add(const Duration(days: 1));
+
+  final result = await db.rawQuery(
+    '''
+    SELECT
+      COALESCE(SUM(calories), 0) AS total_calories,
+      COALESCE(SUM(protein_grams), 0) AS total_protein
+    FROM nutrition_records
+    WHERE eaten_at >= ? AND eaten_at < ?
+    ''',
+    [
+      startOfDay.toIso8601String(),
+      endOfDay.toIso8601String(),
+    ],
+  );
+
+  final row = result.first;
+
+  return {
+    'calories': (row['total_calories'] as num).toDouble(),
+    'protein': (row['total_protein'] as num).toDouble(),
+  };
+}
+static Future<List<Map<String, dynamic>>>
+    getNutritionRecordsByDate(DateTime date) async {
+  final db = await database;
+
+  final startOfDay = DateTime(
+    date.year,
+    date.month,
+    date.day,
+  );
+
+  final endOfDay = DateTime(
+    date.year,
+    date.month,
+    date.day + 1,
+  );
+
+  return db.query(
+    'nutrition_records',
+    where: 'eaten_at >= ? AND eaten_at < ?',
+    whereArgs: [
+      startOfDay.toIso8601String(),
+      endOfDay.toIso8601String(),
+    ],
+    orderBy: 'eaten_at DESC, id DESC',
+  );
+}
+static Future<Map<String, double>> getNutritionTotalsByDate(
+  DateTime date,
+) async {
+  final db = await database;
+
+  final startOfDay = DateTime(
+    date.year,
+    date.month,
+    date.day,
+  );
+
+  final endOfDay = DateTime(
+    date.year,
+    date.month,
+    date.day + 1,
+  );
+
+  final result = await db.rawQuery(
+    '''
+    SELECT
+      COALESCE(SUM(calories), 0) AS total_calories,
+      COALESCE(SUM(protein_grams), 0) AS total_protein
+    FROM nutrition_records
+    WHERE eaten_at >= ? AND eaten_at < ?
+    ''',
+    [
+      startOfDay.toIso8601String(),
+      endOfDay.toIso8601String(),
+    ],
+  );
+
+  final row = result.first;
+
+  return {
+    'calories': (row['total_calories'] as num).toDouble(),
+    'protein': (row['total_protein'] as num).toDouble(),
+  };
+}
+static Future<int> deleteNutritionRecord(int id) async {
+  if (id <= 0) {
+    throw ArgumentError('올바른 음식 기록 ID가 필요합니다.');
+  }
+
+  final db = await database;
+
+  return db.delete(
+    'nutrition_records',
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
+static Future<int> updateNutritionRecord({
+  required int id,
+  required String foodName,
+  required String mealType,
+  required double amountGrams,
+  required double calories,
+  required double proteinGrams,
+}) async {
+  if (id <= 0 ||
+      foodName.trim().isEmpty ||
+      amountGrams <= 0 ||
+      !amountGrams.isFinite ||
+      calories < 0 ||
+      !calories.isFinite ||
+      proteinGrams < 0 ||
+      !proteinGrams.isFinite) {
+    throw ArgumentError('올바른 음식 기록 정보가 필요합니다.');
+  }
+
+  final db = await database;
+
+  return db.update(
+    'nutrition_records',
+    {
+      'food_name': foodName.trim(),
+      'meal_type': mealType,
+      'amount_grams': amountGrams,
+      'calories': calories,
+      'protein_grams': proteinGrams,
+    },
+    where: 'id = ?',
+    whereArgs: [id],
+  );
 }
 }

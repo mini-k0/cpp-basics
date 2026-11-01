@@ -1,3 +1,4 @@
+import 'nutrition_page.dart';
 import 'workout_set_input_page.dart';
 import 'package:flutter/material.dart';
 import 'workout_statistics_page.dart';
@@ -102,14 +103,22 @@ class HomePage extends StatelessWidget {
     },
   ),
 ),
-            const Card(
-              child: ListTile(
-                leading: Icon(Icons.restaurant),
-                title: Text('영양 관리'),
-                subtitle: Text('칼로리와 단백질을 관리하세요'),
-                trailing: Icon(Icons.arrow_forward_ios),
-              ),
-            ),
+            Card(
+  child: ListTile(
+    leading: const Icon(Icons.restaurant),
+    title: const Text('영양 관리'),
+    subtitle: const Text('칼로리와 단백질을 관리하세요'),
+    trailing: const Icon(Icons.arrow_forward_ios),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const NutritionPage(),
+        ),
+      );
+    },
+  ),
+),
             const Card(
               child: ListTile(
                 leading: Icon(Icons.smart_toy),
