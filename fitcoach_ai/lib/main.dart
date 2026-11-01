@@ -483,14 +483,29 @@ const SizedBox(height: 12),
   mainAxisSize: MainAxisSize.min,
   children: [
     IconButton(
-      icon: const Icon(Icons.edit_outlined),
-      tooltip: '기록 수정',
-      onPressed: workoutIdsWithSets.contains(
-  (workout['id'] as num).toInt(),
-)
-    ? null
-    : () => editWorkout(workout),
-    ),
+  icon: const Icon(Icons.edit_outlined),
+  tooltip: '기록 수정',
+  onPressed: () async {
+    final workoutId = (workout['id'] as num).toInt();
+
+    if (workoutIdsWithSets.contains(workoutId)) {
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WorkoutSetInputPage(
+            workoutId: workoutId,
+          ),
+        ),
+      );
+
+      if (result == true) {
+        await loadWorkouts();
+      }
+    } else {
+      editWorkout(workout);
+    }
+  },
+),
     IconButton(
       icon: const Icon(Icons.delete_outline),
       tooltip: '기록 삭제',

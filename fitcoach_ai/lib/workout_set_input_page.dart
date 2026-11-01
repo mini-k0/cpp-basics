@@ -2,7 +2,12 @@ import 'workout_database.dart';
 import 'package:flutter/material.dart';
 
 class WorkoutSetInputPage extends StatefulWidget {
-  const WorkoutSetInputPage({super.key});
+  final int? workoutId;
+
+  const WorkoutSetInputPage({
+    super.key,
+    this.workoutId,
+  });
 
   @override
   State<WorkoutSetInputPage> createState() =>
@@ -36,6 +41,11 @@ void updateTotalReps() {
 }
 
 Future<void> selectWorkoutDate() async {
+  // 기존 운동 기록을 수정할 때는 날짜 변경 금지
+  if (widget.workoutId != null) {
+    return;
+  }
+
   final pickedDate = await showDatePicker(
     context: context,
     initialDate: selectedDate,
@@ -114,11 +124,20 @@ Future<void> saveWorkoutWithSets() async {
   });
 
   try {
-    await WorkoutDatabase.insertWorkoutWithSets(
-      name: nameController.text.trim(),
-      workoutDate: selectedDate,
-      workoutSets: validatedSets,
-    );
+
+if (widget.workoutId == null) {
+  await WorkoutDatabase.insertWorkoutWithSets(
+    name: nameController.text.trim(),
+    workoutDate: selectedDate,
+    workoutSets: validatedSets,
+  );
+} else {
+  await WorkoutDatabase.updateWorkoutWithSets(
+    workoutId: widget.workoutId!,
+    name: nameController.text.trim(),
+    workoutSets: validatedSets,
+  );
+}
 
     if (!mounted) return;
 
@@ -144,6 +163,83 @@ Future<void> saveWorkoutWithSets() async {
       });
     }
   }
+}
+
+@override
+void initState() {
+  super.initState();
+
+  if (widget.workoutId != null) {
+    loadExistingWorkoutSets();
+  }
+}
+
+Future<void> loadExistingWorkoutSets() async {
+  final workoutId = widget.workoutId;
+
+  if (workoutId == null) return;
+
+  final existingWorkout =
+    await WorkoutDatabase.getWorkoutById(workoutId);
+
+if (!mounted) return;
+
+if (existingWorkout == null) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('운동 기록을 찾을 수 없습니다.'),
+    ),
+  );
+  return;
+}
+
+  final existingSets =
+      await WorkoutDatabase.getWorkoutSets(workoutId);
+
+  if (!mounted) return;
+
+  if (existingSets.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('기존 세트 기록을 찾을 수 없습니다.'),
+      ),
+    );
+    return;
+  }
+
+  final loadedSets = <_SetInput>[];
+
+for (final set in existingSets) {
+  final input = _SetInput();
+
+  input.weightController.text =
+      (set['weight'] as num).toString();
+
+  input.repsController.text =
+      (set['reps'] as num).toInt().toString();
+
+  loadedSets.add(input);
+}
+
+final oldSets = List<_SetInput>.from(workoutSets);
+
+setState(() {
+  nameController.text = existingWorkout['name'] as String;
+
+  selectedDate = DateTime.parse(
+    existingWorkout['created_at'] as String,
+  );
+
+  workoutSets
+    ..clear()
+    ..addAll(loadedSets);
+});
+
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  for (final oldSet in oldSets) {
+    oldSet.dispose();
+  }
+});
 }
 
   void addSet() {
@@ -183,7 +279,11 @@ Future<void> saveWorkoutWithSets() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('세트별 운동 기록'),
+        title: Text(
+  widget.workoutId == null
+      ? '세트별 운동 기록'
+      : '세트별 운동 기록 수정',
+),
         backgroundColor: Colors.teal.shade100,
       ),
       body: ListView(
@@ -200,7 +300,9 @@ Future<void> saveWorkoutWithSets() async {
           const SizedBox(height: 12),
 
 OutlinedButton.icon(
-  onPressed: selectWorkoutDate,
+  onPressed: widget.workoutId == null
+      ? selectWorkoutDate
+      : null,
   icon: const Icon(Icons.calendar_month),
   label: Text(
     '${selectedDate.year}년 '

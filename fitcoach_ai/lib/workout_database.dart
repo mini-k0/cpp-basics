@@ -122,6 +122,147 @@ class WorkoutDatabase {
     whereArgs: [id],
   );
 }
+
+static Future<bool> workoutExists(int workoutId) async {
+  final db = await database;
+
+  final result = await db.query(
+    'workouts',
+    columns: ['id'],
+    where: 'id = ?',
+    whereArgs: [workoutId],
+    limit: 1,
+  );
+
+  return result.isNotEmpty;
+}
+
+static Future<Map<String, dynamic>?> getWorkoutById(
+  int workoutId,
+) async {
+  final db = await database;
+
+  final results = await db.query(
+    'workouts',
+    where: 'id = ?',
+    whereArgs: [workoutId],
+    limit: 1,
+  );
+
+  if (results.isEmpty) {
+    return null;
+  }
+
+  return results.first;
+}
+
+static Future<void> updateWorkoutWithSets({
+  required int workoutId,
+  required String name,
+  required List<Map<String, dynamic>> workoutSets,
+}) async {
+  if (workoutId <= 0) {
+    throw ArgumentError('올바르지 않은 운동 기록 ID입니다.');
+  }
+
+  if (name.trim().isEmpty) {
+    throw ArgumentError('운동 이름을 입력해야 합니다.');
+  }
+
+  if (workoutSets.isEmpty) {
+    throw ArgumentError('최소 1개의 세트가 필요합니다.');
+  }
+
+  for (final set in workoutSets) {
+    final weight = set['weight'];
+    final reps = set['reps'];
+
+    if (weight is! num ||
+        !weight.toDouble().isFinite ||
+        weight < 0 ||
+        reps is! int ||
+        reps <= 0) {
+      throw ArgumentError('세트별 중량과 반복 횟수를 확인해 주세요.');
+    }
+  }
+
+  final db = await database;
+
+  await db.transaction((txn) async {
+  // 1. 기존 운동 기록 확인
+  final existing = await txn.query(
+    'workouts',
+    columns: ['id'],
+    where: 'id = ?',
+    whereArgs: [workoutId],
+    limit: 1,
+  );
+
+  if (existing.isEmpty) {
+    throw StateError('수정할 운동 기록이 존재하지 않습니다.');
+  }
+
+  // 2. 세트별 기록인지 확인
+  final existingSets = await txn.query(
+    'workout_sets',
+    columns: ['id'],
+    where: 'workout_id = ?',
+    whereArgs: [workoutId],
+    limit: 1,
+  );
+
+  if (existingSets.isEmpty) {
+    throw StateError('세트별 운동 기록이 아닙니다.');
+  }
+
+  // 3. 새로운 합계 계산
+  final totalReps = workoutSets.fold<int>(
+    0,
+    (sum, set) => sum + (set['reps'] as int),
+  );
+
+  final maxWeight = workoutSets
+      .map((set) => (set['weight'] as num).toDouble())
+      .reduce((a, b) => a > b ? a : b);
+
+  // 4. 부모 운동 기록 수정
+  await txn.update(
+    'workouts',
+    {
+      'name': name.trim(),
+      'weight': maxWeight,
+      'reps': totalReps,
+      'sets': workoutSets.length,
+    },
+    where: 'id = ?',
+    whereArgs: [workoutId],
+  );
+
+  // 5. 기존 세트 데이터 삭제
+  await txn.delete(
+    'workout_sets',
+    where: 'workout_id = ?',
+    whereArgs: [workoutId],
+  );
+
+  // 6. 수정된 세트 데이터 저장
+  for (int i = 0; i < workoutSets.length; i++) {
+    final set = workoutSets[i];
+
+    await txn.insert(
+      'workout_sets',
+      {
+        'workout_id': workoutId,
+        'set_number': i + 1,
+        'weight': (set['weight'] as num).toDouble(),
+        'reps': set['reps'] as int,
+      },
+    );
+  }
+});
+
+}
+
 static Future<int> insertWorkoutSet({
   required int workoutId,
   required int setNumber,
